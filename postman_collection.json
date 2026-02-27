@@ -1,0 +1,335 @@
+{
+  "info": {
+    "name": "LearnSmart Prep API",
+    "description": "EdTech Admin Panel Backend API Collection",
+    "version": "1.0.0"
+  },
+  "item": [
+    {
+      "name": "Classes",
+      "item": [
+        {
+          "name": "Get All Classes",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/classes"
+          }
+        },
+        {
+          "name": "Get Class by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/classes/:id"
+          }
+        },
+        {
+          "name": "Create Class",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/classes",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "raw": "{\"name\": \"SSC\", \"description\": \"Secondary School Certificate\"}"
+            }
+          }
+        },
+        {
+          "name": "Update Class",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/api/classes/:id",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "raw": "{\"name\": \"SSC Updated\"}"
+            }
+          }
+        },
+        {
+          "name": "Delete Class",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/classes/:id"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Groups",
+      "item": [
+        {
+          "name": "Get All Groups",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/groups"
+          }
+        },
+        {
+          "name": "Get Groups by Class",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/groups?classId=:classId"
+          }
+        },
+        {
+          "name": "Create Group",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/groups",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "raw": "{\"name\": \"Science\", \"classId\": \":classId\"}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Subjects",
+      "item": [
+        {
+          "name": "Get All Subjects",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/subjects"
+          }
+        },
+        {
+          "name": "Get Subjects by Group",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/subjects?groupId=:groupId"
+          }
+        },
+        {
+          "name": "Create Subject",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/subjects",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "raw": "{\"name\": \"Physics\", \"groupId\": \":groupId\"}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Chapters",
+      "item": [
+        {
+          "name": "Get All Chapters",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/chapters"
+          }
+        },
+        {
+          "name": "Get Chapters by Subject",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/chapters?subjectId=:subjectId"
+          }
+        },
+        {
+          "name": "Create Chapter",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/chapters",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "raw": "{\"name\": \"Motion\", \"subjectId\": \":subjectId\"}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Topics",
+      "item": [
+        {
+          "name": "Get All Topics",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/topics"
+          }
+        },
+        {
+          "name": "Get Topics by Chapter",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/topics?chapterId=:chapterId"
+          }
+        },
+        {
+          "name": "Create Topic",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/topics",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "raw": "{\"name\": \"Velocity\", \"chapterId\": \":chapterId\"}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Questions",
+      "item": [
+        {
+          "name": "Get All Questions",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/questions"
+          }
+        },
+        {
+          "name": "Get Questions Filtered",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/questions?subjectId=:subjectId&difficulty=medium"
+          }
+        },
+        {
+          "name": "Search Questions",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/questions?search=velocity"
+          }
+        },
+        {
+          "name": "Create Question",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/questions",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "raw": "{\"questionTextEn\": \"What is velocity?\", \"options\": [{\"text\": \"Speed with direction\", \"isCorrect\": true}, {\"text\": \"Speed\", \"isCorrect\": false}], \"subjectId\": \":subjectId\", \"chapterId\": \":chapterId\", \"topicId\": \":topicId\"}"
+            }
+          }
+        },
+        {
+          "name": "Bulk Import Questions",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/questions/bulk",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "raw": "{\"questions\": []}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Exams",
+      "item": [
+        {
+          "name": "Get All Exams",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/exams"
+          }
+        },
+        {
+          "name": "Get Exam by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/exams/:id"
+          }
+        },
+        {
+          "name": "Create Exam",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/exams",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "raw": "{\"title\": \"Physics Exam\", \"duration\": 120, \"totalMarks\": 100, \"questionIds\": []}"
+            }
+          }
+        },
+        {
+          "name": "Publish Exam",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/api/exams/:id/publish"
+          }
+        },
+        {
+          "name": "Unpublish Exam",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/api/exams/:id/unpublish"
+          }
+        },
+        {
+          "name": "Delete Exam",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/exams/:id"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/health"
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000",
+      "type": "string"
+    }
+  ]
+}
