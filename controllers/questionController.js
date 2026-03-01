@@ -79,8 +79,8 @@ exports.createQuestion = async (req, res) => {
     const { questionTextEn, questionTextBn, options, explanation, subjectId, chapterId, topicId, difficulty, questionType, tags, subQuestions } = req.body;
 
     // basic required refs
-    if (!subjectId || !chapterId || !topicId) {
-      return res.status(400).json({ success: false, error: 'Please provide subjectId, chapterId and topicId' });
+    if (!subjectId || !chapterId) {
+      return res.status(400).json({ success: false, error: 'Please provide subjectId and chapterId' });
     }
 
     const qType = (questionType || 'MCQ').toUpperCase();
@@ -175,7 +175,7 @@ exports.bulkImportQuestions = async (req, res) => {
     
     // Validate each question according to its type (MCQ or CQ)
     const isValidQuestion = (q) => {
-      if (!q || !q.subjectId || !q.chapterId || !q.topicId) return false;
+      if (!q || !q.subjectId || !q.chapterId) return false;
       const qType = (q.questionType || 'MCQ').toUpperCase();
       if (qType === 'MCQ') {
         if (!(q.questionTextEn || q.questionTextBn)) return false;

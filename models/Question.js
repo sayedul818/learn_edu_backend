@@ -69,7 +69,6 @@ const questionSchema = new mongoose.Schema(
     topicId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Topic',
-      required: [true, 'Please provide a topic ID'],
     },
     examTypeId: {
       type: mongoose.Schema.Types.ObjectId,
