@@ -67,9 +67,25 @@ app.use('*', (req, res) => {
   });
 });
 
-const PORT = process.env.PORT || 5000;
+const DEFAULT_PORT = Number(process.env.PORT) || 5000;
 
-app.listen(PORT, () => {
-  console.log(`✓ Server running on port ${PORT}`);
-  console.log(`✓ Environment: ${process.env.NODE_ENV || 'development'}`);
-});
+const startServer = (port, retriesLeft = 10) => {
+  const server = app.listen(port, () => {
+    console.log(`✓ Server running on port ${port}`);
+    console.log(`✓ Environment: ${process.env.NODE_ENV || 'development'}`);
+  });
+
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE' && retriesLeft > 0) {
+      const nextPort = port + 1;
+      console.warn(`⚠ Port ${port} is in use. Retrying on ${nextPort}...`);
+      startServer(nextPort, retriesLeft - 1);
+      return;
+    }
+
+    console.error('✗ Failed to start server:', err.message);
+    process.exit(1);
+  });
+};
+
+startServer(DEFAULT_PORT);

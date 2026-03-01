@@ -11,6 +11,18 @@ const optionSchema = new mongoose.Schema({
   },
 });
 
+const subQuestionSchema = new mongoose.Schema({
+  label: { type: String },
+  // optional type for sub-question (e.g., জ্ঞানমূলক, অনুধাবনমূলক, প্রয়োগমূলক)
+  type: { type: String, trim: true },
+  questionTextBn: { type: String, trim: true },
+  questionTextEn: { type: String, trim: true },
+  answerBn: { type: String, trim: true },
+  answerEn: { type: String, trim: true },
+  explanationBn: { type: String, trim: true },
+  explanationEn: { type: String, trim: true },
+});
+
 const questionSchema = new mongoose.Schema(
   {
     questionTextBn: {
@@ -19,16 +31,26 @@ const questionSchema = new mongoose.Schema(
     },
     questionTextEn: {
       type: String,
-      required: [true, 'Please provide question text in English'],
       trim: true,
+      // required for MCQ only
+      required: function() { return this.questionType === 'MCQ'; }
     },
     options: {
       type: [optionSchema],
-      required: [true, 'Please provide at least 2 options'],
+      // only enforce options for MCQ
       validate: {
-        validator: (options) => options.length >= 2,
+        validator: function(options) {
+          if (this.questionType === 'MCQ') {
+            return Array.isArray(options) && options.length >= 2;
+          }
+          return true; // other question types (CQ etc) may omit options
+        },
         message: 'Question must have at least 2 options',
       },
+    },
+    subQuestions: {
+      type: [subQuestionSchema],
+      default: [],
     },
     explanation: {
       type: String,
