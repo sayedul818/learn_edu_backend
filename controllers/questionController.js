@@ -294,6 +294,7 @@ exports.updateQuestion = async (req, res) => {
       success: true,
       data: question,
     });
+    // Background regrade trigger removed
   } catch (error) {
     res.status(500).json({
       success: false,

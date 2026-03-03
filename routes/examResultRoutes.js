@@ -11,5 +11,6 @@ router.get('/mine', authenticate, examResultController.getMyResults);
 router.get('/exam/:examId', authenticate, examResultController.getResultsByExam);
 // Admin grades a result
 router.put('/:id/grade', authenticate, examResultController.gradeResult);
+// regrade routes removed
 
 module.exports = router;
