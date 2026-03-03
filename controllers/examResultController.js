@@ -132,4 +132,247 @@ exports.getResultsByExam = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
-// regrade endpoints removed
+
+// @desc    Recompute (regrade) a single stored result using current question keys
+// @route   PUT /api/exam-results/:id/regrade
+// @access  Private (admin/teacher)
+exports.regradeResult = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ error: 'Missing result id' });
+
+    const result = await ExamResult.findById(id);
+    if (!result) return res.status(404).json({ error: 'Result not found' });
+
+    // Load exam and questions
+    const exam = await Exam.findById(result.examId).lean();
+    const Question = require('../models/Question');
+    const qIds = (exam.questionIds || []).map(q => (typeof q === 'string' ? q : (q._id || q.id))).filter(Boolean);
+    const questions = await Question.find({ _id: { $in: qIds } }).lean();
+
+    // Compute MCQ score from stored answers using current correct answers
+    let mcqScore = 0;
+    const answers = result.answers || {};
+    const marksPerQuestion = exam.marksPerQuestion ?? 1;
+    const negativeMarking = exam.negativeMarking;
+    const negativeValue = exam.negativeMarkValue || 0;
+
+    for (const q of questions) {
+      if (q.subQuestions && q.subQuestions.length > 0) continue; // skip CQs
+      if (q.questionType !== 'MCQ') continue;
+      const studentAns = answers[q._id] || answers[q.id];
+      const correctOpt = (q.options || []).find(o => o.isCorrect);
+      const correctText = correctOpt ? correctOpt.text : null;
+      const correctIndex = (q.options || []).findIndex(o => o.isCorrect);
+      const isCorrect = studentAns != null && (
+        studentAns === correctText ||
+        String(studentAns).toUpperCase() === (correctIndex >= 0 ? String.fromCharCode(65 + correctIndex) : '')
+      );
+      if (isCorrect) mcqScore += marksPerQuestion;
+      else if (studentAns && negativeMarking) mcqScore -= negativeValue;
+    }
+
+    // Sum CQ marks from stored result.cqMarks
+    let cqTotal = 0;
+    if (result.cqMarks && typeof result.cqMarks === 'object') {
+      Object.values(result.cqMarks).forEach((m) => {
+        const val = Number(m) || 0;
+        cqTotal += val;
+      });
+    }
+
+    const finalScore = Math.max(0, mcqScore + cqTotal);
+    const totalMarks = exam.totalMarks || (qIds.length * marksPerQuestion);
+    const percentage = totalMarks > 0 ? (finalScore / totalMarks) * 100 : 0;
+
+    result.score = finalScore;
+    result.percentage = percentage;
+    result.pendingEvaluation = false;
+    result.gradedAt = new Date();
+    await result.save();
+
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// @desc    Recompute (regrade) all results for an exam using current question keys
+// @route   POST /api/exam-results/exam/:examId/regrade
+// @access  Private (admin/teacher)
+exports.regradeResultsForExam = async (req, res) => {
+  try {
+    const { examId } = req.params;
+    if (!examId) return res.status(400).json({ error: 'Missing exam id' });
+
+    const exam = await Exam.findById(examId).lean();
+    if (!exam) return res.status(404).json({ error: 'Exam not found' });
+
+    const results = await ExamResult.find({ examId });
+    const Question = require('../models/Question');
+    const qIds = (exam.questionIds || []).map(q => (typeof q === 'string' ? q : (q._id || q.id))).filter(Boolean);
+    const questions = await Question.find({ _id: { $in: qIds } }).lean();
+
+    const marksPerQuestion = exam.marksPerQuestion ?? 1;
+    const negativeMarking = exam.negativeMarking;
+    const negativeValue = exam.negativeMarkValue || 0;
+
+    const updated = [];
+    for (const result of results) {
+      let mcqScore = 0;
+      const answers = result.answers || {};
+      for (const q of questions) {
+        if (q.subQuestions && q.subQuestions.length > 0) continue;
+        if (q.questionType !== 'MCQ') continue;
+        const studentAns = answers[q._id] || answers[q.id];
+        const correctOpt = (q.options || []).find(o => o.isCorrect);
+        const correctText = correctOpt ? correctOpt.text : null;
+        const correctIndex = (q.options || []).findIndex(o => o.isCorrect);
+        const isCorrect = studentAns != null && (
+          studentAns === correctText ||
+          String(studentAns).toUpperCase() === (correctIndex >= 0 ? String.fromCharCode(65 + correctIndex) : '')
+        );
+        if (isCorrect) mcqScore += marksPerQuestion;
+        else if (studentAns && negativeMarking) mcqScore -= negativeValue;
+      }
+
+      let cqTotal = 0;
+      if (result.cqMarks && typeof result.cqMarks === 'object') {
+        Object.values(result.cqMarks).forEach((m) => { cqTotal += Number(m) || 0; });
+      }
+
+      const finalScore = Math.max(0, mcqScore + cqTotal);
+      const totalMarks = exam.totalMarks || (qIds.length * marksPerQuestion);
+      const percentage = totalMarks > 0 ? (finalScore / totalMarks) * 100 : 0;
+
+      result.score = finalScore;
+      result.percentage = percentage;
+      result.pendingEvaluation = false;
+      result.gradedAt = new Date();
+      await result.save();
+      updated.push(result._id);
+    }
+
+    res.json({ success: true, updatedCount: updated.length, updatedIds: updated });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// @desc    Recompute (regrade) a single stored result using current question keys
+// @route   PUT /api/exam-results/:id/regrade
+// @access  Private (admin/teacher)
+exports.regradeResult = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ error: 'Missing result id' });
+
+    const result = await ExamResult.findById(id);
+    if (!result) return res.status(404).json({ error: 'Result not found' });
+
+    // Load exam and questions
+    const exam = await Exam.findById(result.examId).lean();
+    const Question = require('../models/Question');
+    const qIds = (exam.questionIds || []).map(q => (typeof q === 'string' ? q : (q._id || q.id))).filter(Boolean);
+    const questions = await Question.find({ _id: { $in: qIds } }).lean();
+
+    // Compute MCQ score from stored answers using current correct answers
+    let mcqScore = 0;
+    const answers = result.answers || {};
+    const marksPerQuestion = exam.marksPerQuestion ?? 1;
+    const negativeMarking = exam.negativeMarking;
+    const negativeValue = exam.negativeMarkValue || 0;
+
+    for (const q of questions) {
+      if (q.subQuestions && q.subQuestions.length > 0) continue; // skip CQs
+      if (q.questionType !== 'MCQ') continue;
+      const studentAns = answers[q._id] || answers[q.id];
+      const correctOpt = (q.options || []).find(o => o.isCorrect);
+      const correctText = correctOpt ? correctOpt.text : null;
+      const isCorrect = studentAns != null && (studentAns === correctText || String(studentAns).toUpperCase() === String((q.options || []).findIndex(o=>o.isCorrect) >=0 ? String.fromCharCode(65 + (q.options || []).findIndex(o=>o.isCorrect)) : ''));
+      if (isCorrect) mcqScore += marksPerQuestion;
+      else if (studentAns && negativeMarking) mcqScore -= negativeValue;
+    }
+
+    // Sum CQ marks from stored result.cqMarks
+    let cqTotal = 0;
+    if (result.cqMarks && typeof result.cqMarks === 'object') {
+      Object.values(result.cqMarks).forEach((m) => {
+        const val = Number(m) || 0;
+        cqTotal += val;
+      });
+    }
+
+    const finalScore = Math.max(0, mcqScore + cqTotal);
+    const totalMarks = exam.totalMarks || (qIds.length * marksPerQuestion);
+    const percentage = totalMarks > 0 ? (finalScore / totalMarks) * 100 : 0;
+
+    result.score = finalScore;
+    result.percentage = percentage;
+    result.pendingEvaluation = false;
+    result.gradedAt = new Date();
+    await result.save();
+
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// @desc    Recompute (regrade) all results for an exam using current question keys
+// @route   POST /api/exam-results/exam/:examId/regrade
+// @access  Private (admin/teacher)
+exports.regradeResultsForExam = async (req, res) => {
+  try {
+    const { examId } = req.params;
+    if (!examId) return res.status(400).json({ error: 'Missing exam id' });
+
+    const exam = await Exam.findById(examId).lean();
+    if (!exam) return res.status(404).json({ error: 'Exam not found' });
+
+    const results = await ExamResult.find({ examId });
+    const Question = require('../models/Question');
+    const qIds = (exam.questionIds || []).map(q => (typeof q === 'string' ? q : (q._id || q.id))).filter(Boolean);
+    const questions = await Question.find({ _id: { $in: qIds } }).lean();
+
+    const marksPerQuestion = exam.marksPerQuestion ?? 1;
+    const negativeMarking = exam.negativeMarking;
+    const negativeValue = exam.negativeMarkValue || 0;
+
+    const updated = [];
+    for (const result of results) {
+      let mcqScore = 0;
+      const answers = result.answers || {};
+      for (const q of questions) {
+        if (q.subQuestions && q.subQuestions.length > 0) continue;
+        if (q.questionType !== 'MCQ') continue;
+        const studentAns = answers[q._id] || answers[q.id];
+        const correctOpt = (q.options || []).find(o => o.isCorrect);
+        const correctText = correctOpt ? correctOpt.text : null;
+        const isCorrect = studentAns != null && (studentAns === correctText || String(studentAns).toUpperCase() === String((q.options || []).findIndex(o=>o.isCorrect) >=0 ? String.fromCharCode(65 + (q.options || []).findIndex(o=>o.isCorrect)) : ''));
+        if (isCorrect) mcqScore += marksPerQuestion;
+        else if (studentAns && negativeMarking) mcqScore -= negativeValue;
+      }
+
+      let cqTotal = 0;
+      if (result.cqMarks && typeof result.cqMarks === 'object') {
+        Object.values(result.cqMarks).forEach((m) => { cqTotal += Number(m) || 0; });
+      }
+
+      const finalScore = Math.max(0, mcqScore + cqTotal);
+      const totalMarks = exam.totalMarks || (qIds.length * marksPerQuestion);
+      const percentage = totalMarks > 0 ? (finalScore / totalMarks) * 100 : 0;
+
+      result.score = finalScore;
+      result.percentage = percentage;
+      result.pendingEvaluation = false;
+      result.gradedAt = new Date();
+      await result.save();
+      updated.push(result._id);
+    }
+
+    res.json({ success: true, updatedCount: updated.length, updatedIds: updated });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};

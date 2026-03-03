@@ -11,6 +11,9 @@ router.get('/mine', authenticate, examResultController.getMyResults);
 router.get('/exam/:examId', authenticate, examResultController.getResultsByExam);
 // Admin grades a result
 router.put('/:id/grade', authenticate, examResultController.gradeResult);
-// regrade routes removed
+// Admin regrade a single stored result (recompute using current question keys)
+router.put('/:id/regrade', authenticate, examResultController.regradeResult);
+// Admin regrade all results for an exam
+router.post('/exam/:examId/regrade', authenticate, examResultController.regradeResultsForExam);
 
 module.exports = router;
