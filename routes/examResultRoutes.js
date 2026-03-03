@@ -9,5 +9,7 @@ router.post('/', authenticate, examResultController.submitResult);
 router.get('/mine', authenticate, examResultController.getMyResults);
 // Admin/teacher fetches all results for an exam
 router.get('/exam/:examId', authenticate, examResultController.getResultsByExam);
+// Admin grades a result
+router.put('/:id/grade', authenticate, examResultController.gradeResult);
 
 module.exports = router;

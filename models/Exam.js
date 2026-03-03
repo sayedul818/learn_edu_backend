@@ -22,6 +22,17 @@ const examSchema = new mongoose.Schema(
       ref: 'Question',
       default: [],
     },
+    // Per-question marks override for this exam. Each entry contains questionId (can be parent id)
+    // and marks assigned for that question in the exam context.
+    questionMarks: {
+      type: [
+        {
+          questionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Question' },
+          marks: { type: Number, default: 1 },
+        }
+      ],
+      default: [],
+    },
     status: {
       type: String,
       enum: ['draft', 'scheduled', 'live'],

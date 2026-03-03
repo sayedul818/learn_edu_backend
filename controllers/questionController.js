@@ -128,6 +128,14 @@ exports.createQuestion = async (req, res) => {
       }
     }
 
+    // determine marks default if not provided
+    let marksValue = req.body.marks;
+    if (marksValue === undefined || marksValue === null) {
+      if (qType === 'MCQ') marksValue = 1;
+      else if (qType === 'CQ' && Array.isArray(subQuestions) && subQuestions.length === 4) marksValue = 10;
+      else marksValue = 1;
+    }
+
     const newQuestion = await Question.create({
       questionTextEn,
       questionTextBn,
@@ -140,6 +148,7 @@ exports.createQuestion = async (req, res) => {
       difficulty: difficulty || 'medium',
       questionType: qType,
       tags: tags || [],
+      marks: marksValue,
     });
     
     await newQuestion.populate('subjectId');
@@ -221,6 +230,13 @@ exports.bulkImportQuestions = async (req, res) => {
           if (!s.type && s.subQuestionType) s.type = s.subQuestionType;
           return s;
         });
+      }
+
+      // set marks default if not provided
+      if (normalized.marks === undefined || normalized.marks === null) {
+        if (normalized.questionType === 'MCQ') normalized.marks = 1;
+        else if (normalized.questionType === 'CQ' && Array.isArray(normalized.subQuestions) && normalized.subQuestions.length === 4) normalized.marks = 10;
+        else normalized.marks = 1;
       }
 
       return normalized;

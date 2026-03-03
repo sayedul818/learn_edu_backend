@@ -126,6 +126,7 @@ exports.createExam = async (req, res) => {
       duration,
       totalMarks,
       questionIds,
+      questionMarks,
       description,
       startDate,
       startTime,
@@ -145,7 +146,13 @@ exports.createExam = async (req, res) => {
       autoSubmit,
     } = req.body;
 
-    if (!title || !duration || typeof totalMarks === 'undefined') {
+    // If questionMarks provided and totalMarks not provided, compute totalMarks
+    let computedTotalMarks = totalMarks;
+    if ((computedTotalMarks === undefined || computedTotalMarks === null) && Array.isArray(questionMarks) && questionMarks.length > 0) {
+      computedTotalMarks = questionMarks.reduce((s, qm) => s + (Number(qm.marks) || 0), 0);
+    }
+
+    if (!title || !duration || typeof computedTotalMarks === 'undefined') {
       return res.status(400).json({
         success: false,
         error: 'Please provide title, duration, and totalMarks',
@@ -164,8 +171,9 @@ exports.createExam = async (req, res) => {
     const newExam = await Exam.create({
       title,
       duration,
-      totalMarks,
+      totalMarks: computedTotalMarks,
       questionIds: questionIds || [],
+      questionMarks: Array.isArray(questionMarks) ? questionMarks.map(qm => ({ questionId: qm.questionId, marks: Number(qm.marks) || 0 })) : [],
       description,
       status: isScheduled ? 'scheduled' : 'draft',
       // schedule fields
