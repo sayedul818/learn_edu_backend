@@ -48,7 +48,7 @@ exports.submitResult = async (req, res) => {
 exports.gradeResult = async (req, res) => {
   try {
     const { id } = req.params;
-    const { cqMarks } = req.body; // { questionId: marks }
+    const { cqMarks, totalMarks: providedTotalMarks, score: providedScore } = req.body; // { questionId: marks }
     if (!id) return res.status(400).json({ error: 'Missing result id' });
 
     const result = await ExamResult.findById(id);
@@ -89,11 +89,21 @@ exports.gradeResult = async (req, res) => {
       });
     }
 
-    const finalScore = Math.max(0, mcqScore + cqTotal);
-    const totalMarks = exam.totalMarks || (qIds.length * marksPerQuestion);
+    // If admin provided an explicit totalMarks override, persist it on the result
+    if (providedTotalMarks != null) {
+      result.totalMarks = Number(providedTotalMarks);
+    }
+
+    // If admin provided an explicit score override, use it. Otherwise compute from MCQ + CQ.
+    let finalScore = Math.max(0, mcqScore + cqTotal);
+    if (providedScore != null) {
+      finalScore = Number(providedScore);
+    }
+    const totalMarks = (result.totalMarks != null) ? result.totalMarks : (exam.totalMarks || (qIds.length * marksPerQuestion));
     const percentage = totalMarks > 0 ? (finalScore / totalMarks) * 100 : 0;
 
-    result.cqMarks = cqMarks || {};
+    // Update stored CQ marks and final score (allowing admin overrides)
+    result.cqMarks = cqMarks || result.cqMarks || {};
     result.score = finalScore;
     result.percentage = percentage;
     result.pendingEvaluation = false;
@@ -182,7 +192,7 @@ exports.regradeResult = async (req, res) => {
     }
 
     const finalScore = Math.max(0, mcqScore + cqTotal);
-    const totalMarks = exam.totalMarks || (qIds.length * marksPerQuestion);
+    const totalMarks = (result.totalMarks != null) ? result.totalMarks : (exam.totalMarks || (qIds.length * marksPerQuestion));
     const percentage = totalMarks > 0 ? (finalScore / totalMarks) * 100 : 0;
 
     result.score = finalScore;
@@ -303,9 +313,9 @@ exports.regradeResult = async (req, res) => {
       });
     }
 
-    const finalScore = Math.max(0, mcqScore + cqTotal);
-    const totalMarks = exam.totalMarks || (qIds.length * marksPerQuestion);
-    const percentage = totalMarks > 0 ? (finalScore / totalMarks) * 100 : 0;
+      const finalScore = Math.max(0, mcqScore + cqTotal);
+      const totalMarks = (result.totalMarks != null) ? result.totalMarks : (exam.totalMarks || (qIds.length * marksPerQuestion));
+      const percentage = totalMarks > 0 ? (finalScore / totalMarks) * 100 : 0;
 
     result.score = finalScore;
     result.percentage = percentage;
@@ -360,7 +370,7 @@ exports.regradeResultsForExam = async (req, res) => {
       }
 
       const finalScore = Math.max(0, mcqScore + cqTotal);
-      const totalMarks = exam.totalMarks || (qIds.length * marksPerQuestion);
+      const totalMarks = (result.totalMarks != null) ? result.totalMarks : (exam.totalMarks || (qIds.length * marksPerQuestion));
       const percentage = totalMarks > 0 ? (finalScore / totalMarks) * 100 : 0;
 
       result.score = finalScore;
