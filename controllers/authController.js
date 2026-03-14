@@ -17,7 +17,7 @@ exports.register = async (req, res) => {
     const user = new User({ name, email, password, role: role || 'student' });
     await user.save();
 
-    const token = signToken(user);
+    const token = signToken(user);  
     res.json({ token, user: { id: user._id, name: user.name, email: user.email, role: user.role } });
   } catch (err) {
     console.error(err);
