@@ -24,8 +24,8 @@ const app = express();
 connectDB();
 
 // Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
 // Parse CORS origins from comma-separated list
 const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')

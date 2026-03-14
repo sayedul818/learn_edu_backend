@@ -48,7 +48,7 @@ exports.submitResult = async (req, res) => {
 exports.gradeResult = async (req, res) => {
   try {
     const { id } = req.params;
-    const { cqMarks, totalMarks: providedTotalMarks, score: providedScore } = req.body; // { questionId: marks }
+    const { cqMarks, totalMarks: providedTotalMarks, score: providedScore, feedbackAttachments } = req.body; // { questionId: marks }
     if (!id) return res.status(400).json({ error: 'Missing result id' });
 
     const result = await ExamResult.findById(id);
@@ -104,6 +104,9 @@ exports.gradeResult = async (req, res) => {
 
     // Update stored CQ marks and final score (allowing admin overrides)
     result.cqMarks = cqMarks || result.cqMarks || {};
+    if (feedbackAttachments && typeof feedbackAttachments === 'object') {
+      result.feedbackAttachments = feedbackAttachments;
+    }
     result.score = finalScore;
     result.percentage = percentage;
     result.pendingEvaluation = false;

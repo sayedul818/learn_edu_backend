@@ -10,6 +10,9 @@ const ExamResultSchema = new mongoose.Schema({
   percentage: { type: Number, required: false, default: null },
   // attachments for written responses: { questionId: { name, type, dataUrl or url } }
   attachments: { type: Object, default: {} },
+  // admin-edited feedback images/files keyed by question attachment key
+  // { questionId: [{ name, type, url or dataUrl, edited: true, originalName? }] }
+  feedbackAttachments: { type: Object, default: {} },
   // per-question manual marks for CQ sub-questions: { questionId: marks }
   cqMarks: { type: Object, default: {} },
   pendingEvaluation: { type: Boolean, default: false },
