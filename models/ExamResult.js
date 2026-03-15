@@ -15,6 +15,8 @@ const ExamResultSchema = new mongoose.Schema({
   feedbackAttachments: { type: Object, default: {} },
   // per-question manual marks for CQ sub-questions: { questionId: marks }
   cqMarks: { type: Object, default: {} },
+  // student-marked CQ status from TakeExam: { parentQuestionId: 'answered' | 'skipped' }
+  cqStatus: { type: Object, default: {} },
   pendingEvaluation: { type: Boolean, default: false },
   gradedAt: { type: Date },
   timeTaken: { type: Number, required: true }, // seconds

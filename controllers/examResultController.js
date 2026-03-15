@@ -6,7 +6,7 @@ const Exam = require('../models/Exam');
 // @access  Private (student)
 exports.submitResult = async (req, res) => {
   try {
-    const { examId, answers, score, totalMarks, percentage, timeTaken, pendingEvaluation, attachments } = req.body;
+    const { examId, answers, score, totalMarks, percentage, timeTaken, pendingEvaluation, attachments, cqStatus } = req.body;
     const studentId = req.user.id || req.user._id;
     if (!examId || !answers || totalMarks == null || timeTaken == null) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -30,6 +30,7 @@ exports.submitResult = async (req, res) => {
     if (score != null) update.score = score;
     if (percentage != null) update.percentage = percentage;
     if (attachments) update.attachments = attachments;
+    if (cqStatus && typeof cqStatus === 'object') update.cqStatus = cqStatus;
 
     const result = await ExamResult.findOneAndUpdate(
       { examId, studentId },
