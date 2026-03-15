@@ -128,14 +128,6 @@ exports.createQuestion = async (req, res) => {
       }
     }
 
-    // determine marks default if not provided
-    let marksValue = req.body.marks;
-    if (marksValue === undefined || marksValue === null) {
-      if (qType === 'MCQ') marksValue = 1;
-      else if (qType === 'CQ' && Array.isArray(subQuestions) && subQuestions.length === 4) marksValue = 10;
-      else marksValue = 1;
-    }
-
     const newQuestion = await Question.create({
       questionTextEn,
       questionTextBn,
@@ -148,7 +140,6 @@ exports.createQuestion = async (req, res) => {
       difficulty: difficulty || 'medium',
       questionType: qType,
       tags: tags || [],
-      marks: marksValue,
     });
     
     await newQuestion.populate('subjectId');
@@ -232,13 +223,6 @@ exports.bulkImportQuestions = async (req, res) => {
         });
       }
 
-      // set marks default if not provided
-      if (normalized.marks === undefined || normalized.marks === null) {
-        if (normalized.questionType === 'MCQ') normalized.marks = 1;
-        else if (normalized.questionType === 'CQ' && Array.isArray(normalized.subQuestions) && normalized.subQuestions.length === 4) normalized.marks = 10;
-        else normalized.marks = 1;
-      }
-
       return normalized;
     });
     
@@ -294,62 +278,6 @@ exports.updateQuestion = async (req, res) => {
       success: true,
       data: question,
     });
-
-    // After responding to client, trigger asynchronous regrade for exams that include this question
-    (async () => {
-      try {
-        const Exam = require('../models/Exam');
-        const ExamResult = require('../models/ExamResult');
-        const QuestionModel = require('../models/Question');
-        const qId = req.params.id;
-        // find exams that reference this question
-        const exams = await Exam.find({ questionIds: qId }).lean();
-        for (const ex of exams) {
-          try {
-            const qIds = (ex.questionIds || []).map(q => (typeof q === 'string' ? q : (q._id || q.id))).filter(Boolean);
-            const questions = await QuestionModel.find({ _id: { $in: qIds } }).lean();
-            const results = await ExamResult.find({ examId: ex._id });
-            const marksPerQuestion = ex.marksPerQuestion ?? 1;
-            const negativeMarking = ex.negativeMarking;
-            const negativeValue = ex.negativeMarkValue || 0;
-
-            for (const result of results) {
-              let mcqScore = 0;
-              const answers = result.answers || {};
-              for (const q of questions) {
-                if (q.subQuestions && q.subQuestions.length > 0) continue;
-                if (q.questionType !== 'MCQ') continue;
-                const studentAns = answers[q._id] || answers[q.id];
-                const correctOpt = (q.options || []).find(o => o.isCorrect);
-                const correctText = correctOpt ? correctOpt.text : null;
-                const isCorrect = studentAns != null && (studentAns === correctText || String(studentAns).toUpperCase() === String((q.options || []).findIndex(o=>o.isCorrect) >=0 ? String.fromCharCode(65 + (q.options || []).findIndex(o=>o.isCorrect)) : ''));
-                if (isCorrect) mcqScore += marksPerQuestion;
-                else if (studentAns && negativeMarking) mcqScore -= negativeValue;
-              }
-
-              let cqTotal = 0;
-              if (result.cqMarks && typeof result.cqMarks === 'object') {
-                Object.values(result.cqMarks).forEach((m) => { cqTotal += Number(m) || 0; });
-              }
-
-              const finalScore = Math.max(0, mcqScore + cqTotal);
-              const totalMarks = ex.totalMarks || (qIds.length * marksPerQuestion);
-              const percentage = totalMarks > 0 ? (finalScore / totalMarks) * 100 : 0;
-
-              result.score = finalScore;
-              result.percentage = percentage;
-              result.pendingEvaluation = false;
-              result.gradedAt = new Date();
-              await result.save();
-            }
-          } catch (ee) {
-            console.error('Error regrading exam after question update', ex._id, ee);
-          }
-        }
-      } catch (e) {
-        console.error('Background regrade failed after question update', e);
-      }
-    })();
   } catch (error) {
     res.status(500).json({
       success: false,

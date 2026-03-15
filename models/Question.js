@@ -84,19 +84,9 @@ const questionSchema = new mongoose.Schema(
       enum: ['easy', 'medium', 'hard'],
       default: 'medium',
     },
-    // Marks for the question (total marks for the whole question)
-    marks: {
-      type: Number,
-      default: 1,
-    },
     tags: {
       type: [String],
       default: [],
-    },
-    image: {
-      type: String,
-      trim: true,
-      // Can store base64 or URL. Optional field.
     },
   },
   {
