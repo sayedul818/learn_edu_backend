@@ -76,7 +76,7 @@ exports.getQuestion = async (req, res) => {
 // @access  Private
 exports.createQuestion = async (req, res) => {
   try {
-    const { questionTextEn, questionTextBn, options, explanation, subjectId, chapterId, topicId, difficulty, questionType, tags, subQuestions } = req.body;
+    const { questionTextEn, questionTextBn, image, options, explanation, subjectId, chapterId, topicId, difficulty, questionType, tags, subQuestions } = req.body;
 
     // basic required refs
     if (!subjectId || !chapterId) {
@@ -131,6 +131,7 @@ exports.createQuestion = async (req, res) => {
     const newQuestion = await Question.create({
       questionTextEn,
       questionTextBn,
+      image,
       options,
       subQuestions,
       explanation,

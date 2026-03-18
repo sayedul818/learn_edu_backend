@@ -15,6 +15,7 @@ const subQuestionSchema = new mongoose.Schema({
   label: { type: String },
   // optional type for sub-question (e.g., জ্ঞানমূলক, অনুধাবনমূলক, প্রয়োগমূলক)
   type: { type: String, trim: true },
+  image: { type: String, trim: true },
   questionTextBn: { type: String, trim: true },
   questionTextEn: { type: String, trim: true },
   answerBn: { type: String, trim: true },
@@ -34,6 +35,10 @@ const questionSchema = new mongoose.Schema(
       trim: true,
       // required for MCQ only
       required: function() { return this.questionType === 'MCQ'; }
+    },
+    image: {
+      type: String,
+      trim: true,
     },
     options: {
       type: [optionSchema],
