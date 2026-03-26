@@ -41,7 +41,8 @@ exports.getLeaderboard = async (req, res) => {
           examsCompleted: 1,
           avgPercentage: { $round: ['$avgPercentage', 0] },
           name: { $ifNull: [ '$student.name', '$student.email' ] },
-          email: '$student.email'
+          email: '$student.email',
+          avatar: { $ifNull: ['$student.avatar', ''] }
       } }
     );
 

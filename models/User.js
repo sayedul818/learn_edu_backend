@@ -11,6 +11,16 @@ const UserSchema = new mongoose.Schema({
   class: { type: String },
   group: { type: String },
   phone: { type: String },
+  assignedTeacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, index: true },
+  preferences: {
+    language: { type: String, default: 'en' },
+    theme: { type: String, enum: ['light', 'dark', 'system'], default: 'system' },
+    notifications: {
+      examReminders: { type: Boolean, default: true },
+      resultAlerts: { type: Boolean, default: true },
+      leaderboardUpdates: { type: Boolean, default: true },
+    },
+  },
   status: { type: String, enum: ['active', 'inactive'], default: 'active' },
   lastLogin: { type: Date },
 }, { timestamps: true });
