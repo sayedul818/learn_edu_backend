@@ -8,6 +8,7 @@
     "start": "node server.js",
     "seed": "node scripts/seedAdmin.js",
     "seed:demo": "node scripts/seedDemoUsers.js",
+    "export:questions:csv": "node scripts/exportQuestionsCsv.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [

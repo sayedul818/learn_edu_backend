@@ -1,11 +1,44 @@
 const Question = require('../models/Question');
 
+const toStringOrEmpty = (value) => (value == null ? '' : String(value).trim());
+
+const parseArrayField = (value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== 'string' || value.trim() === '') return [];
+
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const normalizeSubQuestion = (sq = {}, fallbackType = '') => {
+  const normalized = { ...(sq || {}) };
+
+  if (!normalized.answerBn && normalized.answer) normalized.answerBn = normalized.answer;
+  if (!normalized.answerEn && normalized.answerTextEn) normalized.answerEn = normalized.answerTextEn;
+  if (!normalized.questionTextBn && normalized.questionText) normalized.questionTextBn = normalized.questionText;
+  if (!normalized.questionTextEn && normalized.questionTextEnglish) normalized.questionTextEn = normalized.questionTextEnglish;
+  if (!normalized.type && normalized.subQuestionType) normalized.type = normalized.subQuestionType;
+  if (!normalized.type && fallbackType) normalized.type = fallbackType;
+
+  return normalized;
+};
+
+const normalizeQuestionType = (value, hasSubQuestions = false) => {
+  const normalized = toStringOrEmpty(value).toUpperCase();
+  if (normalized === 'MCQ' || normalized === 'CQ') return normalized;
+  return hasSubQuestions ? 'CQ' : 'MCQ';
+};
+
 // @desc    Get all questions with filters
 // @route   GET /api/questions?subjectId=&chapterId=&topicId=&search=&difficulty=&questionType=
 // @access  Public
 exports.getAllQuestions = async (req, res) => {
   try {
-    const { subjectId, chapterId, topicId, search, difficulty, questionType } = req.query;
+    const { subjectId, chapterId, topicId, search, difficulty, questionType, boardYear } = req.query;
     const filter = {};
     
     if (subjectId) filter.subjectId = subjectId;
@@ -13,6 +46,7 @@ exports.getAllQuestions = async (req, res) => {
     if (topicId) filter.topicId = topicId;
     if (difficulty) filter.difficulty = difficulty;
     if (questionType) filter.questionType = questionType;
+    if (boardYear) filter.boardYear = boardYear;
     
     if (search) {
       filter.$or = [
@@ -26,7 +60,7 @@ exports.getAllQuestions = async (req, res) => {
       .populate('chapterId')
       .populate('topicId')
       .populate('examTypeId')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: 1, _id: 1 });
     
     res.status(200).json({
       success: true,
@@ -76,18 +110,25 @@ exports.getQuestion = async (req, res) => {
 // @access  Private
 exports.createQuestion = async (req, res) => {
   try {
-    const { questionTextEn, questionTextBn, image, options, explanation, subjectId, chapterId, topicId, difficulty, questionType, tags, subQuestions } = req.body;
+    const { questionTextEn, questionTextBn, image, options, explanation, subjectId, chapterId, topicId, difficulty, questionType, tags, subQuestions, boardYear } = req.body;
+    const passageTextEn = toStringOrEmpty(questionTextEn || req.body.passageTextEn || req.body.passage || req.body.passage_text_en);
+    const passageTextBn = toStringOrEmpty(questionTextBn || req.body.passageTextBn || req.body.passageTextBangla || req.body.passage_text_bn);
+    const fallbackSubQuestionType = toStringOrEmpty(req.body.type);
+    const rawSubQuestions = Array.isArray(subQuestions)
+      ? subQuestions
+      : parseArrayField(req.body.blanks || req.body.subQuestionsJson || req.body.cqSubQuestions);
+    const normalizedSubQuestions = rawSubQuestions.map((sq) => normalizeSubQuestion(sq, fallbackSubQuestionType));
 
     // basic required refs
     if (!subjectId || !chapterId) {
       return res.status(400).json({ success: false, error: 'Please provide subjectId and chapterId' });
     }
 
-    const qType = (questionType || 'MCQ').toUpperCase();
+    const qType = normalizeQuestionType(questionType || req.body.question_type || req.body.qType || req.body.type, normalizedSubQuestions.length > 0);
 
     // MCQ validation
     if (qType === 'MCQ') {
-      if (!questionTextEn && !questionTextBn) {
+      if (!passageTextEn && !passageTextBn) {
         return res.status(400).json({ success: false, error: 'Please provide question text (questionTextEn or questionTextBn) for MCQ' });
       }
 
@@ -103,43 +144,31 @@ exports.createQuestion = async (req, res) => {
 
     // CQ validation (comprehension questions with sub-questions)
     if (qType === 'CQ') {
-      const hasPassage = !!(questionTextBn || questionTextEn);
-      const hasSubQuestions = Array.isArray(subQuestions) && subQuestions.length > 0;
+      const hasPassage = !!(passageTextBn || passageTextEn);
+      const hasSubQuestions = Array.isArray(normalizedSubQuestions) && normalizedSubQuestions.length > 0;
 
       // require either a passage or at least one valid subQuestion
       if (!hasPassage && !hasSubQuestions) {
         return res.status(400).json({ success: false, error: 'Please provide either a passage (questionTextBn/questionTextEn) or at least one subQuestion for CQ' });
       }
 
-      // If subQuestions are provided, normalize and validate minimal fields (label + questionText)
-      if (hasSubQuestions) {
-        for (let i = 0; i < subQuestions.length; i++) {
-          const sq = subQuestions[i] = { ...(subQuestions[i] || {}) };
-          // map generic keys to explicit schema keys when present
-          if (!sq.answerBn && sq.answer) sq.answerBn = sq.answer;
-          if (!sq.questionTextBn && sq.questionText) sq.questionTextBn = sq.questionText;
-          // normalize sub-question type (accept `type` or legacy `subQuestionType`)
-          if (!sq.type && sq.subQuestionType) sq.type = sq.subQuestionType;
-
-          if (!sq.label || !(sq.questionTextBn || sq.questionTextEn)) {
-            return res.status(400).json({ success: false, error: `Each subQuestion must have 'label' and 'questionTextBn/questionTextEn' (problem at index ${i})` });
-          }
-        }
-      }
+      // Sub-question fields are optional. Keep only the parent-level CQ guard above
+      // (requires either a passage or at least one subQuestion object).
     }
 
     const newQuestion = await Question.create({
-      questionTextEn,
-      questionTextBn,
+      questionTextEn: passageTextEn,
+      questionTextBn: passageTextBn,
       image,
       options,
-      subQuestions,
+      subQuestions: normalizedSubQuestions,
       explanation,
       subjectId,
       chapterId,
       topicId,
       difficulty: difficulty || 'medium',
       questionType: qType,
+      boardYear: boardYear || req.body.board || '',
       tags: tags || [],
     });
     
@@ -165,7 +194,7 @@ exports.createQuestion = async (req, res) => {
 // @access  Private
 exports.bulkImportQuestions = async (req, res) => {
   try {
-    const { questions } = req.body;
+    const { questions, dryRun = false, continueOnError = true } = req.body;
     
     if (!Array.isArray(questions)) {
       return res.status(400).json({
@@ -174,60 +203,114 @@ exports.bulkImportQuestions = async (req, res) => {
       });
     }
     
-    // Validate each question according to its type (MCQ or CQ)
-    const isValidQuestion = (q) => {
-      if (!q || !q.subjectId || !q.chapterId) return false;
-      const qType = (q.questionType || 'MCQ').toUpperCase();
-      if (qType === 'MCQ') {
-        if (!(q.questionTextEn || q.questionTextBn)) return false;
-        if (!Array.isArray(q.options) || q.options.length < 2) return false;
-        if (q.options.some((o) => !o || !o.text || String(o.text).trim() === '')) return false;
-        return true;
-      }
-      if (qType === 'CQ') {
-        const hasPassage = !!(q.questionTextEn || q.questionTextBn);
-        const hasSub = Array.isArray(q.subQuestions) && q.subQuestions.length > 0;
-        if (!hasPassage && !hasSub) return false;
-        if (hasSub) {
-          for (const sq of q.subQuestions) {
-            if (!sq || !sq.label || !(sq.questionTextBn || sq.questionTextEn)) return false;
-          }
-        }
-        return true;
-      }
-      return false;
-    };
-
-    const validQuestions = questions.filter(isValidQuestion);
-
-    if (validQuestions.length === 0) {
-      return res.status(400).json({ success: false, error: 'No valid questions provided (check MCQ/CQ structure and required fields)' });
-    }
-    
-    // Set default values for optional fields
-    // Normalize subQuestions for CQ items and set defaults
-    const questionsToInsert = validQuestions.map((q) => {
+    const normalizeQuestion = (q = {}) => {
+      const subQuestionsSource = parseArrayField(q.subQuestions || q.blanks || q.subQuestionsJson || q.cqSubQuestions);
       const normalized = {
         ...q,
         difficulty: q.difficulty || 'medium',
-        questionType: (q.questionType || 'MCQ').toUpperCase(),
-        tags: q.tags || [],
+        questionTextEn: toStringOrEmpty(q.questionTextEn || q.passageTextEn || q.passage || q.passageText || q.passage_text_en),
+        questionTextBn: toStringOrEmpty(q.questionTextBn || q.passageTextBn || q.passageTextBangla || q.passage_text_bn),
+        questionType: normalizeQuestionType(q.questionType || q.question_type || q.qType || q.type, subQuestionsSource.length > 0),
+        boardYear: toStringOrEmpty(q.boardYear || q.board || q.year),
+        tags: Array.isArray(q.tags)
+          ? q.tags.filter(Boolean)
+          : (typeof q.tags === 'string' ? q.tags.split(',').map((t) => t.trim()).filter(Boolean) : []),
+        subQuestions: subQuestionsSource.map((sq) => normalizeSubQuestion(sq, toStringOrEmpty(q.type))),
       };
 
-      if (normalized.questionType === 'CQ' && Array.isArray(normalized.subQuestions)) {
-        normalized.subQuestions = normalized.subQuestions.map((sq) => {
-          const s = { ...(sq || {}) };
-          if (!s.answerBn && s.answer) s.answerBn = s.answer;
-          if (!s.questionTextBn && s.questionText) s.questionTextBn = s.questionText;
-          if (!s.type && s.subQuestionType) s.type = s.subQuestionType;
-          return s;
-        });
+      if (Array.isArray(normalized.options)) {
+        normalized.options = normalized.options
+          .map((o) => ({
+            text: String(o?.text || '').trim(),
+            isCorrect: Boolean(o?.isCorrect),
+          }))
+          .filter((o) => o.text !== '');
       }
 
       return normalized;
+    };
+
+    const validateQuestion = (q = {}) => {
+      const errors = [];
+      if (!q.subjectId) errors.push('subjectId is required');
+      if (!q.chapterId) errors.push('chapterId is required');
+
+      const qType = (q.questionType || 'MCQ').toUpperCase();
+      if (qType !== 'MCQ' && qType !== 'CQ') {
+        errors.push(`Unsupported questionType '${q.questionType}' for bulk import`);
+        return errors;
+      }
+
+      if (qType === 'MCQ') {
+        if (!(q.questionTextEn || q.questionTextBn)) {
+          errors.push('MCQ requires questionTextEn or questionTextBn');
+        }
+        if (!Array.isArray(q.options) || q.options.length < 2) {
+          errors.push('MCQ must have at least 2 options');
+        } else if (q.options.some((o) => !o || !o.text || String(o.text).trim() === '')) {
+          errors.push('All MCQ options must have non-empty text');
+        }
+      }
+
+      if (qType === 'CQ') {
+        const hasPassage = !!(q.questionTextEn || q.questionTextBn);
+        const hasSub = Array.isArray(q.subQuestions) && q.subQuestions.length > 0;
+        if (!hasPassage && !hasSub) {
+          errors.push('CQ requires passage text or at least one subQuestion');
+        }
+
+        // Sub-question fields are optional for CQ imports.
+      }
+
+      return errors;
+    };
+
+    const normalizedRows = questions.map((q) => normalizeQuestion(q));
+    const rejected = [];
+    const accepted = [];
+
+    normalizedRows.forEach((q, idx) => {
+      const errors = validateQuestion(q);
+      if (errors.length > 0) {
+        rejected.push({ index: idx, errors });
+      } else {
+        accepted.push(q);
+      }
     });
-    
-    const insertedQuestions = await Question.insertMany(questionsToInsert);
+
+    if (!continueOnError && rejected.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed for one or more rows',
+        importedCount: 0,
+        rejectedCount: rejected.length,
+        rejected,
+      });
+    }
+
+    if (accepted.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No valid questions provided (check MCQ/CQ structure and required fields)',
+        importedCount: 0,
+        rejectedCount: rejected.length,
+        rejected,
+      });
+    }
+
+    if (dryRun) {
+      return res.status(200).json({
+        success: true,
+        dryRun: true,
+        importedCount: 0,
+        validCount: accepted.length,
+        rejectedCount: rejected.length,
+        rejected,
+        message: 'Dry run completed successfully',
+      });
+    }
+
+    const insertedQuestions = await Question.insertMany(accepted);
     
     // Populate references for all inserted questions
     const populatedQuestions = await Question.find({
@@ -242,6 +325,10 @@ exports.bulkImportQuestions = async (req, res) => {
       success: true,
       count: populatedQuestions.length,
       data: populatedQuestions,
+      importedCount: populatedQuestions.length,
+      validCount: accepted.length,
+      rejectedCount: rejected.length,
+      rejected,
       message: `${populatedQuestions.length} questions imported successfully`,
     });
   } catch (error) {

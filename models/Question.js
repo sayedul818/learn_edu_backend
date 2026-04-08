@@ -33,8 +33,6 @@ const questionSchema = new mongoose.Schema(
     questionTextEn: {
       type: String,
       trim: true,
-      // required for MCQ only
-      required: function() { return this.questionType === 'MCQ'; }
     },
     image: {
       type: String,
@@ -88,6 +86,10 @@ const questionSchema = new mongoose.Schema(
       type: String,
       enum: ['easy', 'medium', 'hard'],
       default: 'medium',
+    },
+    boardYear: {
+      type: String,
+      trim: true,
     },
     tags: {
       type: [String],
