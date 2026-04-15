@@ -19,8 +19,11 @@ const normalizeSubQuestion = (sq = {}, fallbackType = '') => {
 
   if (!normalized.answerBn && normalized.answer) normalized.answerBn = normalized.answer;
   if (!normalized.answerEn && normalized.answerTextEn) normalized.answerEn = normalized.answerTextEn;
+  if (!normalized.questionTextBn && normalized.question) normalized.questionTextBn = normalized.question;
+  if (!normalized.questionTextEn && normalized.questionEn) normalized.questionTextEn = normalized.questionEn;
   if (!normalized.questionTextBn && normalized.questionText) normalized.questionTextBn = normalized.questionText;
   if (!normalized.questionTextEn && normalized.questionTextEnglish) normalized.questionTextEn = normalized.questionTextEnglish;
+  if (!normalized.question && normalized.questionTextBn) normalized.question = normalized.questionTextBn;
   if (!normalized.type && normalized.subQuestionType) normalized.type = normalized.subQuestionType;
   if (!normalized.type && fallbackType) normalized.type = fallbackType;
 
@@ -128,10 +131,6 @@ exports.createQuestion = async (req, res) => {
 
     // MCQ validation
     if (qType === 'MCQ') {
-      if (!passageTextEn && !passageTextBn) {
-        return res.status(400).json({ success: false, error: 'Please provide question text (questionTextEn or questionTextBn) for MCQ' });
-      }
-
       if (!Array.isArray(options) || options.length < 2) {
         return res.status(400).json({ success: false, error: 'MCQ must have at least 2 options' });
       }
@@ -242,9 +241,6 @@ exports.bulkImportQuestions = async (req, res) => {
       }
 
       if (qType === 'MCQ') {
-        if (!(q.questionTextEn || q.questionTextBn)) {
-          errors.push('MCQ requires questionTextEn or questionTextBn');
-        }
         if (!Array.isArray(q.options) || q.options.length < 2) {
           errors.push('MCQ must have at least 2 options');
         } else if (q.options.some((o) => !o || !o.text || String(o.text).trim() === '')) {
