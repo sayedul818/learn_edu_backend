@@ -13,23 +13,70 @@ function isAdmin(user) {
 exports.listStudents = async (req, res) => {
   try {
     const { search, status } = req.query;
-    const q = { role: 'student' };
-    if (!isAdmin(req.user)) q.assignedTeacherId = toObjectId(req.user);
-    if (status) q.status = status;
-    if (search) {
-      q.$or = [
-        { name: new RegExp(search, 'i') },
-        { email: new RegExp(search, 'i') },
-      ];
+    const teacherId = toObjectId(req.user);
+
+    const andConditions = [{ role: 'student' }];
+    if (status) andConditions.push({ status });
+
+    if (!isAdmin(req.user)) {
+      const enrollmentRows = await Enrollment.find({ ownerTeacherId: teacherId }).select('studentId');
+      const enrolledStudentIds = [...new Set(
+        enrollmentRows
+          .map((row) => String(row.studentId || ''))
+          .filter(Boolean)
+      )];
+
+      andConditions.push({
+        $or: [
+          { assignedTeacherId: teacherId },
+          ...(enrolledStudentIds.length > 0 ? [{ _id: { $in: enrolledStudentIds } }] : []),
+        ],
+      });
     }
+
+    if (search) {
+      andConditions.push({
+        $or: [
+          { name: new RegExp(search, 'i') },
+          { email: new RegExp(search, 'i') },
+        ],
+      });
+    }
+
+    const q = andConditions.length === 1 ? andConditions[0] : { $and: andConditions };
 
     const students = await User.find(q).select('-password').sort({ createdAt: -1 });
     const studentIds = students.map((s) => s._id);
 
     const [enrollAgg, resultAgg] = await Promise.all([
       Enrollment.aggregate([
-        { $match: { studentId: { $in: studentIds } } },
-        { $group: { _id: '$studentId', enrolledCourses: { $sum: 1 } } },
+        {
+          $match: {
+            studentId: { $in: studentIds },
+            ...(!isAdmin(req.user) ? { ownerTeacherId: teacherId } : {}),
+          },
+        },
+        {
+          $group: {
+            _id: '$studentId',
+            enrolledCourses: { $sum: 1 },
+            pendingCourses: {
+              $sum: {
+                $cond: [{ $eq: ['$status', 'pending'] }, 1, 0],
+              },
+            },
+            holdCourses: {
+              $sum: {
+                $cond: [{ $eq: ['$status', 'hold'] }, 1, 0],
+              },
+            },
+            activeCourses: {
+              $sum: {
+                $cond: [{ $eq: ['$status', 'active'] }, 1, 0],
+              },
+            },
+          },
+        },
       ]),
       ExamResult.aggregate([
         { $match: { studentId: { $in: studentIds } } },
@@ -43,16 +90,26 @@ exports.listStudents = async (req, res) => {
       ]),
     ]);
 
-    const enrollmentMap = new Map(enrollAgg.map((r) => [String(r._id), r.enrolledCourses]));
+    const enrollmentMap = new Map(enrollAgg.map((r) => [String(r._id), r]));
     const resultMap = new Map(resultAgg.map((r) => [String(r._id), { examsGiven: r.examsGiven, avgScore: r.avgScore }]));
 
     const data = students.map((student) => {
+      const enrollmentInfo = enrollmentMap.get(String(student._id)) || { enrolledCourses: 0, pendingCourses: 0, holdCourses: 0, activeCourses: 0 };
       const resultInfo = resultMap.get(String(student._id)) || { examsGiven: 0, avgScore: 0 };
+
+      let courseStatus = student.status === 'inactive' ? 'inactive' : 'active';
+      if (enrollmentInfo.pendingCourses > 0) {
+        courseStatus = 'pending';
+      } else if (enrollmentInfo.holdCourses > 0 && enrollmentInfo.activeCourses === 0) {
+        courseStatus = 'hold';
+      }
+
       return {
         ...student.toObject(),
-        enrolledCourses: enrollmentMap.get(String(student._id)) || 0,
+        enrolledCourses: enrollmentInfo.enrolledCourses || 0,
         examsGiven: resultInfo.examsGiven,
         averageScore: Number((resultInfo.avgScore || 0).toFixed(2)),
+        courseStatus,
       };
     });
 

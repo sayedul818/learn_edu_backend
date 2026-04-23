@@ -17,6 +17,7 @@ const examResultRoutes = require('../routes/examResultRoutes');
 const leaderboardRoutes = require('../routes/leaderboardRoutes');
 const authRoutes = require('../routes/authRoutes');
 const userRoutes = require('../routes/userRoutes');
+const messageRoutes = require('../routes/messageRoutes');
 
 const app = express();
 
@@ -53,6 +54,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/exam-results', examResultRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
+app.use('/api/messages', messageRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
