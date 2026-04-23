@@ -557,26 +557,25 @@ exports.markConversationRead = async (req, res) => {
     const userId = toObjectId(req.user);
     if (!userId) return res.status(401).json({ success: false, error: 'Not authenticated' });
 
-    const conversation = await Conversation.findById(req.params.id);
+    const conversation = await Conversation.findById(req.params.id).lean();
     if (!conversation) return res.status(404).json({ success: false, error: 'Conversation not found' });
     if (!isConversationParticipant(conversation, userId)) {
       return res.status(403).json({ success: false, error: 'Forbidden' });
     }
 
     const now = new Date();
-    conversation.participants = (conversation.participants || []).map((participant) => {
-      if (String(participant.userId) === String(userId)) {
-        return {
-          ...participant.toObject(),
-          lastReadAt: now,
-          lastSeenAt: now,
-          isTyping: false,
-          typingUpdatedAt: now,
-        };
-      }
-      return participant;
-    });
-    await conversation.save();
+    await Conversation.updateOne(
+      { _id: conversation._id },
+      {
+        $set: {
+          'participants.$[me].lastReadAt': now,
+          'participants.$[me].lastSeenAt': now,
+          'participants.$[me].isTyping': false,
+          'participants.$[me].typingUpdatedAt': now,
+        },
+      },
+      { arrayFilters: [{ 'me.userId': userId }] }
+    );
 
     await updateStatusesAsSeen({ conversationId: conversation._id, viewerId: userId });
 
@@ -591,7 +590,7 @@ exports.setTyping = async (req, res) => {
     const userId = toObjectId(req.user);
     if (!userId) return res.status(401).json({ success: false, error: 'Not authenticated' });
 
-    const conversation = await Conversation.findById(req.params.id);
+    const conversation = await Conversation.findById(req.params.id).lean();
     if (!conversation) return res.status(404).json({ success: false, error: 'Conversation not found' });
     if (!isConversationParticipant(conversation, userId)) {
       return res.status(403).json({ success: false, error: 'Forbidden' });
@@ -600,19 +599,18 @@ exports.setTyping = async (req, res) => {
     const isTyping = Boolean(req.body?.isTyping);
     const now = new Date();
 
-    conversation.participants = (conversation.participants || []).map((participant) => {
-      if (String(participant.userId) === String(userId)) {
-        return {
-          ...participant.toObject(),
-          isTyping,
-          typingUpdatedAt: now,
-          lastSeenAt: now,
-        };
-      }
-      return participant;
-    });
+    await Conversation.updateOne(
+      { _id: conversation._id },
+      {
+        $set: {
+          'participants.$[me].isTyping': isTyping,
+          'participants.$[me].typingUpdatedAt': now,
+          'participants.$[me].lastSeenAt': now,
+        },
+      },
+      { arrayFilters: [{ 'me.userId': userId }] }
+    );
 
-    await conversation.save();
     res.json({ success: true, data: { conversationId: conversation._id, isTyping } });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -624,24 +622,24 @@ exports.setMute = async (req, res) => {
     const userId = toObjectId(req.user);
     if (!userId) return res.status(401).json({ success: false, error: 'Not authenticated' });
 
-    const conversation = await Conversation.findById(req.params.id);
+    const conversation = await Conversation.findById(req.params.id).lean();
     if (!conversation) return res.status(404).json({ success: false, error: 'Conversation not found' });
     if (!isConversationParticipant(conversation, userId)) {
       return res.status(403).json({ success: false, error: 'Forbidden' });
     }
 
     const muted = Boolean(req.body?.muted);
-    conversation.participants = (conversation.participants || []).map((participant) => {
-      if (String(participant.userId) === String(userId)) {
-        return {
-          ...participant.toObject(),
-          muted,
-        };
-      }
-      return participant;
-    });
 
-    await conversation.save();
+    await Conversation.updateOne(
+      { _id: conversation._id },
+      {
+        $set: {
+          'participants.$[me].muted': muted,
+        },
+      },
+      { arrayFilters: [{ 'me.userId': userId }] }
+    );
+
     res.json({ success: true, data: { conversationId: conversation._id, muted } });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
