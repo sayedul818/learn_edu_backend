@@ -342,22 +342,22 @@ exports.createConversation = async (req, res) => {
         status: 'delivered',
       });
 
-      conversation.lastMessagePreview = buildLastPreview(text, attachments);
-      conversation.lastMessageAt = message.createdAt;
-      conversation.lastMessageSenderId = userId;
-      conversation.participants = (conversation.participants || []).map((participant) => {
-        if (String(participant.userId) === String(userId)) {
-          return {
-            ...participant.toObject(),
-            lastReadAt: message.createdAt,
-            lastSeenAt: message.createdAt,
-            isTyping: false,
-            typingUpdatedAt: message.createdAt,
-          };
-        }
-        return participant;
-      });
-      await conversation.save();
+      const now = message.createdAt || new Date();
+      await Conversation.updateOne(
+        { _id: conversation._id },
+        {
+          $set: {
+            lastMessagePreview: buildLastPreview(text, attachments),
+            lastMessageAt: now,
+            lastMessageSenderId: userId,
+            'participants.$[me].lastReadAt': now,
+            'participants.$[me].lastSeenAt': now,
+            'participants.$[me].isTyping': false,
+            'participants.$[me].typingUpdatedAt': now,
+          },
+        },
+        { arrayFilters: [{ 'me.userId': userId }] }
+      );
     }
 
     const populated = await Conversation.findById(conversation._id).populate('courseId', 'title').lean();
@@ -507,7 +507,7 @@ exports.sendMessage = async (req, res) => {
     const userId = toObjectId(req.user);
     if (!userId) return res.status(401).json({ success: false, error: 'Not authenticated' });
 
-    const conversation = await Conversation.findById(req.params.id);
+    const conversation = await Conversation.findById(req.params.id).lean();
     if (!conversation) return res.status(404).json({ success: false, error: 'Conversation not found' });
     if (!isConversationParticipant(conversation, userId)) {
       return res.status(403).json({ success: false, error: 'Forbidden' });
@@ -528,22 +528,21 @@ exports.sendMessage = async (req, res) => {
     });
 
     const now = message.createdAt || new Date();
-    conversation.lastMessagePreview = buildLastPreview(text, attachments);
-    conversation.lastMessageAt = now;
-    conversation.lastMessageSenderId = userId;
-    conversation.participants = (conversation.participants || []).map((participant) => {
-      if (String(participant.userId) === String(userId)) {
-        return {
-          ...participant.toObject(),
-          lastReadAt: now,
-          lastSeenAt: now,
-          isTyping: false,
-          typingUpdatedAt: now,
-        };
-      }
-      return participant;
-    });
-    await conversation.save();
+    await Conversation.updateOne(
+      { _id: conversation._id },
+      {
+        $set: {
+          lastMessagePreview: buildLastPreview(text, attachments),
+          lastMessageAt: now,
+          lastMessageSenderId: userId,
+          'participants.$[me].lastReadAt': now,
+          'participants.$[me].lastSeenAt': now,
+          'participants.$[me].isTyping': false,
+          'participants.$[me].typingUpdatedAt': now,
+        },
+      },
+      { arrayFilters: [{ 'me.userId': userId }] }
+    );
 
     const payload = await Message.findById(message._id).populate('senderId', 'name avatar role').lean();
     res.status(201).json({ success: true, data: payload });
