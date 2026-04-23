@@ -3,6 +3,7 @@ const router = express.Router();
 const { authenticate } = require('../middleware/auth');
 const messageController = require('../controllers/messageController');
 
+router.get('/course-members', authenticate, messageController.listCourseMembers);
 router.get('/conversations', authenticate, messageController.listConversations);
 router.post('/conversations', authenticate, messageController.createConversation);
 router.get('/conversations/:id/messages', authenticate, messageController.getMessages);

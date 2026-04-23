@@ -65,7 +65,7 @@ async function canTeacherAccessStudent(teacherId, studentId, user) {
   return student;
 }
 
-async function canStudentChatCourseTeacher(studentId, courseId) {
+async function canStudentChatCourseParticipant(studentId, courseId, targetUserId = null) {
   const enrollment = await Enrollment.findOne({ studentId, courseId, status: 'active' })
     .populate('courseId', 'title ownerTeacherId')
     .lean();
@@ -78,12 +78,97 @@ async function canStudentChatCourseTeacher(studentId, courseId) {
 
   if (!teacher) return null;
 
+  let target = teacher;
+  let targetRole = 'teacher';
+
+  if (targetUserId && String(targetUserId) !== String(teacher._id)) {
+    if (String(targetUserId) === String(studentId)) return null;
+
+    const memberEnrollment = await Enrollment.findOne({
+      courseId,
+      studentId: targetUserId,
+      status: 'active',
+    }).lean();
+
+    if (!memberEnrollment) return null;
+
+    const student = await User.findOne({ _id: targetUserId, role: 'student' })
+      .select('name email avatar lastLogin status')
+      .lean();
+
+    if (!student) return null;
+
+    target = student;
+    targetRole = 'student';
+  }
+
   return {
     enrollment,
     teacher,
+    target,
+    targetRole,
     course: enrollment.courseId,
   };
 }
+
+exports.listCourseMembers = async (req, res) => {
+  try {
+    const userId = toObjectId(req.user);
+    if (!userId) return res.status(401).json({ success: false, error: 'Not authenticated' });
+    if (req.user?.role !== 'student') {
+      return res.status(403).json({ success: false, error: 'Only students can load course members' });
+    }
+
+    const courseId = String(req.query?.courseId || '').trim();
+    if (!courseId) return res.status(400).json({ success: false, error: 'courseId is required' });
+
+    const access = await canStudentChatCourseParticipant(userId, courseId);
+    if (!access) {
+      return res.status(403).json({ success: false, error: 'You are not enrolled in this course' });
+    }
+
+    const enrollments = await Enrollment.find({ courseId, status: 'active' })
+      .populate('studentId', 'name email avatar lastLogin status')
+      .lean();
+
+    const members = [];
+    const seenIds = new Set();
+
+    if (access.teacher) {
+      seenIds.add(String(access.teacher._id));
+      members.push({
+        _id: access.teacher._id,
+        name: access.teacher.name,
+        email: access.teacher.email,
+        avatar: access.teacher.avatar || '',
+        role: 'teacher',
+        isOnline: formatLastSeen(access.teacher.lastLogin) === 'Online',
+        lastSeenLabel: formatLastSeen(access.teacher.lastLogin),
+      });
+    }
+
+    enrollments.forEach((item) => {
+      const student = item.studentId;
+      if (!student) return;
+      const sid = String(student._id || '');
+      if (!sid || sid === String(userId) || seenIds.has(sid)) return;
+      seenIds.add(sid);
+      members.push({
+        _id: student._id,
+        name: student.name,
+        email: student.email,
+        avatar: student.avatar || '',
+        role: 'student',
+        isOnline: formatLastSeen(student.lastLogin) === 'Online',
+        lastSeenLabel: formatLastSeen(student.lastLogin),
+      });
+    });
+
+    res.json({ success: true, data: members });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
 
 function isConversationParticipant(conversation, userId) {
   return (conversation?.participantIds || []).some((id) => String(id) === String(userId));
@@ -275,15 +360,20 @@ exports.createConversation = async (req, res) => {
           return res.status(400).json({ success: false, error: 'courseId is required for student conversations' });
         }
 
-        const chatTarget = await canStudentChatCourseTeacher(userId, selectedCourseId);
+        const requestedTargetUserId = req.body?.studentId ? String(req.body.studentId).trim() : '';
+        const chatTarget = await canStudentChatCourseParticipant(
+          userId,
+          selectedCourseId,
+          requestedTargetUserId || null
+        );
         if (!chatTarget) {
-          return res.status(403).json({ success: false, error: 'You can only chat with teachers of your active enrolled courses' });
+          return res.status(403).json({ success: false, error: 'You can only chat with members of your active enrolled course' });
         }
 
-        const teacherId = String(chatTarget.teacher._id);
+        const targetUserId = String(chatTarget.target._id);
         const query = {
           type: 'direct',
-          participantIds: { $all: [userId, teacherId], $size: 2 },
+          participantIds: { $all: [userId, targetUserId], $size: 2 },
           courseId: chatTarget.course._id,
         };
 
@@ -292,10 +382,15 @@ exports.createConversation = async (req, res) => {
         if (!conversation) {
           conversation = await Conversation.create({
             type: 'direct',
-            participantIds: [userId, teacherId],
+            participantIds: [userId, targetUserId],
             participants: [
               { userId, role: 'student', lastReadAt: new Date(), lastSeenAt: new Date() },
-              { userId: teacherId, role: 'teacher', lastReadAt: null, lastSeenAt: chatTarget.teacher.lastLogin || null },
+              {
+                userId: targetUserId,
+                role: chatTarget.targetRole,
+                lastReadAt: null,
+                lastSeenAt: chatTarget.target.lastLogin || null,
+              },
             ],
             courseId: chatTarget.course._id,
             createdBy: userId,
