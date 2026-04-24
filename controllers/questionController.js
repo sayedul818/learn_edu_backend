@@ -209,6 +209,7 @@ exports.bulkImportQuestions = async (req, res) => {
         difficulty: q.difficulty || 'medium',
         questionTextEn: toStringOrEmpty(q.questionTextEn || q.passageTextEn || q.passage || q.passageText || q.passage_text_en),
         questionTextBn: toStringOrEmpty(q.questionTextBn || q.passageTextBn || q.passageTextBangla || q.passage_text_bn),
+        image: toStringOrEmpty(q.image || q.imageUrl || q.imageURL || q.questionImage || q.image_link || q.img),
         questionType: normalizeQuestionType(q.questionType || q.question_type || q.qType || q.type, subQuestionsSource.length > 0),
         boardYear: toStringOrEmpty(q.boardYear || q.board || q.year),
         tags: Array.isArray(q.tags)
