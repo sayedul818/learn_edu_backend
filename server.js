@@ -1,7 +1,9 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const http = require('http');
 const connectDB = require('./config/db');
+const { attachMessageRealtime } = require('./utils/messageRealtime');
 
 // Import routes
 const classRoutes = require('./routes/classRoutes');
@@ -22,6 +24,7 @@ const teacherRoutes = require('./routes/teacherRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 
 const app = express();
+let server;
 
 // Connect to database
 connectDB();
@@ -78,7 +81,10 @@ app.use('*', (req, res) => {
 const DEFAULT_PORT = Number(process.env.PORT) || 5000;
 
 const startServer = (port, retriesLeft = 10) => {
-  const server = app.listen(port, () => {
+  server = http.createServer(app);
+  attachMessageRealtime(server);
+
+  server.listen(port, () => {
     console.log(`✓ Server running on port ${port}`);
     console.log(`✓ Environment: ${process.env.NODE_ENV || 'development'}`);
   });

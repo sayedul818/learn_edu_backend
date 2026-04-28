@@ -2,6 +2,7 @@ const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
 const User = require('../models/User');
 const Enrollment = require('../models/Enrollment');
+const { broadcastConversationUpdated, broadcastMessageCreated } = require('../utils/messageRealtime');
 
 function toObjectId(user) {
   return user?._id || user?.id || null;
@@ -456,6 +457,10 @@ exports.createConversation = async (req, res) => {
     }
 
     const populated = await Conversation.findById(conversation._id).populate('courseId', 'title').lean();
+    broadcastConversationUpdated({
+      participantIds: populated?.participantIds || [],
+      conversation: populated,
+    });
     res.status(201).json({ success: true, data: populated });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -640,6 +645,24 @@ exports.sendMessage = async (req, res) => {
     );
 
     const payload = await Message.findById(message._id).populate('senderId', 'name avatar role').lean();
+    broadcastMessageCreated({
+      participantIds: conversation.participantIds || [],
+      conversationId: conversation._id,
+      message: payload,
+      conversation: {
+        _id: conversation._id,
+        lastMessageAt: now,
+        lastMessagePreview: buildLastPreview(text, attachments),
+      },
+    });
+    broadcastConversationUpdated({
+      participantIds: conversation.participantIds || [],
+      conversation: {
+        _id: conversation._id,
+        lastMessageAt: now,
+        lastMessagePreview: buildLastPreview(text, attachments),
+      },
+    });
     res.status(201).json({ success: true, data: payload });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
