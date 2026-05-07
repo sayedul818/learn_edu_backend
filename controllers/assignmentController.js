@@ -67,7 +67,7 @@ function sanitizeAttachments(list) {
 
 async function uploadBufferToCloudinary(file) {
   const cloudName = process.env.CLOUDINARY_CLOUD_NAME || 'dbjpqg8e3';
-  const uploadPreset = process.env.CLOUDINARY_UPLOAD_PRESET || 'learnsmart_questions';
+  const uploadPreset = process.env.CLOUDINARY_UPLOAD_PRESET || 'exampathshala_questions';
   const isImage = typeof file.mimetype === 'string' && file.mimetype.startsWith('image/');
   const resourceType = isImage ? 'image' : 'raw';
   const formData = new FormData();
