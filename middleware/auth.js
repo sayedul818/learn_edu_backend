@@ -11,6 +11,13 @@ function authenticate(req, res, next) {
     req.user = payload;
     next();
   } catch (err) {
+    // Log verification error for diagnostics (mask token for safety)
+    try {
+      const masked = token ? `${token.slice(0, 8)}...${token.slice(-8)}` : 'no-token';
+      console.warn('[auth] token verification failed:', { message: err && err.message, token: masked });
+    } catch (e) {
+      console.warn('[auth] token verification failed (unable to mask token)');
+    }
     return res.status(401).json({ error: 'Invalid token' });
   }
 }
